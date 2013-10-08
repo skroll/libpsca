@@ -87,27 +87,17 @@ psca_block_add(psca_pool_t   *pool, /* in: the pool that owns the block */
 	return block;
 }
 
-/* removes a block from a chain */
-static inline psca_block_t *
-psca_block_remove(psca_pool_t  *pool,  /* in: pool that owns the block */
-                  psca_block_t *block) /* in: block to remove */
-{
-	psca_block_t *prev = block->prev;
-
-	pool->free_func(pool, block, sizeof(psca_block_t));
-
-	return prev;
-}
-
+#define PSCA_POOL_P(_p) ((struct psca_pool *)(_p))
 #define PSCA_FRAME_OVERHEAD (sizeof(psca_frame_t))
 
-/* add a frame to a pool */
-static inline psca_frame_t *
-psca_frame_add(psca_pool_t  *pool, /* in: pool to add the frame to */
-               psca_frame_t *prev) /* in: previous frame in stack */
+const void *
+psca_frame_push(const void *p)
 {
+	struct psca_pool *pool = PSCA_POOL_P(p);
+	psca_frame_t *prev = pool->frames;
 	psca_frame_t *frame;
 
+	// =================
 	if ((prev == NULL) || (prev->free < PSCA_FRAME_OVERHEAD)) {
 		/* either this is the first frame in the pool, or there is not enough
 		 * room in the previous frame to store the new frame */
@@ -132,46 +122,30 @@ psca_frame_add(psca_pool_t  *pool, /* in: pool to add the frame to */
 	}
 
 	frame->prev = prev;
+	pool->frames = frame;	
 
-	return frame;
-}
-
-/* remove a frame from a pool */
-static inline psca_frame_t *
-psca_frame_remove(psca_pool_t  *pool,  /* in: pool to remove a frame from */
-                  psca_frame_t *frame) /* in: frame to remove */
-{
-	psca_frame_t *prev = frame->prev;
-	psca_block_t *block = frame->blocks;
-
-	/* destroy all the blocks the frame owns */
-	while (block) {
-		block = psca_block_remove(pool, block);
-	}
-
-	return prev;
-}
-
-#define PSCA_POOL_P(_p) ((struct psca_pool *)(_p))
-
-const void *
-psca_frame_push(const void *p)
-{
-	struct psca_pool *pool = PSCA_POOL_P(p);
-
-	pool->frames = psca_frame_add(pool, pool->frames);
-
-	return (void *)pool->frames;
+	return (void *)frame;
 }
 
 const void *
 psca_frame_pop(const void *p)
 {
 	struct psca_pool *pool = PSCA_POOL_P(p);
-
 	psca_frame_t *frame = pool->frames;
+	psca_block_t *block;
 
-	pool->frames = psca_frame_remove(pool, frame);
+	pool->frames = frame->prev;
+
+	block = frame->blocks;
+
+	/* destroy all the blocks the frame owns */
+	while (block) {
+		psca_block_t *prev = block->prev;
+
+		pool->free_func(pool, block, sizeof(psca_block_t));
+
+		block = prev;
+	}
 
 	return (void *)frame;
 }
