@@ -214,31 +214,3 @@ psca_malloc(const void *p,
 	return ptr;
 }
 
-void *
-psca_alloc_malloc(void   *pool,
-                  size_t *size,
-                  size_t *offset)
-{
-	size_t sz = *size;
-	size_t of = *offset;
-
-	psca_block_t *block = malloc(sz);
-
-	if (block == NULL) {
-		return NULL;
-	}
-
-	*size = sz;
-	*offset = of;
-
-	return block;
-}
-
-void
-psca_free_malloc(void   *pool,
-                 void   *block,
-                 size_t  offset)
-{
-	free((void *)block);
-}
-
