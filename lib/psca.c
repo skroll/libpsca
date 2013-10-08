@@ -17,22 +17,19 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <sys/mman.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <stdint.h>
 
 #include "psca.h"
 
-#ifdef PSCA_USE_CONFIG_H
-#include "psca_config.h"
-#endif /* PSCA_USE_CONFIG_H */
-
-#define PSCA_ALLOC_METHOD_MALLOC
-
-#define PSCA_POOL_P(_p) ((struct psca_pool *)(_p))
-
+/*
+ * A block in the system is an allocated chunk of memory. It can be used
+ * by many frames, but will only have one owning frame. Once the owning
+ * frame is removed from the stack, the block will be deallocated. Ideally,
+ * a block is allocated such that multiple frames may exist in a block,
+ * so that deallocations are nothing more than moving a pointer to a
+ * previous spot in a block.
+ */
 struct psca_block {
 	struct psca_block *prev;
 	size_t             size;
@@ -40,6 +37,19 @@ struct psca_block {
 
 typedef struct psca_block psca_block_t;
 
+/*
+ * A frame is a state in the allocation stack that points to a location
+ * in a block. A frame can own blocks, and when the frame is removed from
+ * the stack, all the blocks it owns are also deallocated. A frame can also
+ * point to a piece of memory that is in a block of a "parent" frame.
+ * All psca_malloc calls are actually just moving a pointer in the top-most
+ * frame.
+ *
+ * Instead of allocating a frame using malloc, the frame structure is stored
+ * inside of a block. This is to prevent any non-managed memory allocations
+ * from occurring. This does mean that there is some overhead due to
+ * allocations, but the positives outweigh the negatives.
+ */
 struct psca_frame {
 	struct psca_block *blocks;
 	struct psca_frame *prev;
@@ -49,141 +59,71 @@ struct psca_frame {
 
 typedef struct psca_frame psca_frame_t;
 
-#define PSCA_FRAME_OVERHEAD (sizeof(psca_frame_t))
-#define PSCA_BLOCK_OVERHEAD (sizeof(psca_block_t))
+typedef struct psca_pool psca_pool_t;
 
-#define PSCA_BLOCK_START(_block) ((void *)((uintptr_t)(_block) + PSCA_BLOCK_OVERHEAD))
-
-/* Block allocation and deallocation functions */
-
-/* psca_block_t * psca_block_alloc(void *pool, size_t size)
- *
- * This function should allocate memory for a block. It is allowed to
- * allocate more than the requested size (in the case of alignment, page
- * boundary requirements, etc), but NEVER less. The caller of this function
- * should depend on the size member of the psca_block_t structure to
- * determine the size of the block. If the memory cannot be allocated,
- * then this function should return NULL.
- */
-
-/* void psca_block_free(void *pool, psca_block_t *block)
- *
- * This function should deallocate the specified block. There is no
- * return value.
- */
-#if defined(PSCA_ALLOC_METHOD_MALLOC)
-
-/* malloc implementation */
-
+/* adds a block to a chain */
 static inline psca_block_t *
-psca_block_alloc(void *pool, size_t size)
+psca_block_add(psca_pool_t   *pool, /* in: the pool that owns the block */
+               psca_block_t  *prev, /* in: previous block in the frame */
+               size_t         size, /* in: the requested size */
+               void         **data) /* out: pointer after the block header */
 {
-	size_t internal_size = size + PSCA_BLOCK_OVERHEAD;
+	/* pad the offset + size with size of the block */
+	size_t offset = sizeof(psca_block_t);
+	size += sizeof(psca_block_t);
 
-	psca_block_t *block = malloc(internal_size);
+	psca_block_t *block = pool->alloc_func(pool, &size, &offset);
 
 	if (block == NULL) {
 		return NULL;
 	}
 
-	block->size = size;
-
-	return block;
-}
-
-static inline void
-psca_block_free(void *pool, psca_block_t *block)
-{
-	free((void *)block);
-}
-
-#elif defined(PSCA_ALLOC_METHOD_MMAP)
-
-/* mmap implementation */
-
-#ifndef MAP_ANONYMOUS
-#define MAP_ANONYMOUS MAP_ANON
-#endif /* MAP_ANONYMOUS */
-
-static inline psca_block_t *
-psca_block_alloc(void *pool, size_t size)
-{
-	size_t page_size = (size_t)getpagesize();
-	size_t internal_size = size + PSCA_BLOCK_OVERHEAD;
-	size_t rounded_size = ((internal_size + page_size) / page_size) * page_size;
-	psca_block_t *block = mmap(NULL, rounded_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
-
-	if (block == MAP_FAILED) {
-		return NULL;
-	}
-
-	block->size = rounded_size - PSCA_BLOCK_OVERHEAD;
-
-	return block;
-}
-
-static inline void
-psca_block_free(void *pool, psca_block_t *block)
-{
-	size_t map_size = block->size + PSCA_BLOCK_OVERHEAD;
-	munmap((void *)block, map_size);
-}
-
-#else
-
-/* no implementation defined */
-
-#endif
-
-/* adds a to a chain of blocks */
-static inline psca_block_t *
-psca_block_add(void *pool,
-               psca_block_t *prev,
-               size_t size)
-{
-	psca_block_t *block = psca_block_alloc(pool, size);
-
-	if (block == NULL) {
-		return NULL;
-	}
-
+	/* we requested more than is actually usable by the user */
+	block->size = size - offset;
 	block->prev = prev;
 
+	*data = (void *)((uintptr_t)block + offset);
+
 	return block;
 }
 
+/* removes a block from a chain */
 static inline psca_block_t *
-psca_block_remove(void *pool,
-                  psca_block_t *block)
+psca_block_remove(psca_pool_t  *pool,  /* in: pool that owns the block */
+                  psca_block_t *block) /* in: block to remove */
 {
 	psca_block_t *prev = block->prev;
 
-	psca_block_free(pool, block);
+	pool->free_func(pool, block, sizeof(psca_block_t));
 
 	return prev;
 }
 
+#define PSCA_FRAME_OVERHEAD (sizeof(psca_frame_t))
+
+/* add a frame to a pool */
 static inline psca_frame_t *
-psca_frame_add(void *pool,
-               psca_frame_t *prev)
+psca_frame_add(psca_pool_t  *pool, /* in: pool to add the frame to */
+               psca_frame_t *prev) /* in: previous frame in stack */
 {
 	psca_frame_t *frame;
 
 	if ((prev == NULL) || (prev->free < PSCA_FRAME_OVERHEAD)) {
 		/* either this is the first frame in the pool, or there is not enough
 		 * room in the previous frame to store the new frame */
-		psca_block_t *block = psca_block_add(pool, NULL, PSCA_DEFAULT_BLOCK_SIZE);
+		psca_block_t *block = psca_block_add(pool, NULL,
+		    pool->default_block_size, (void **)&frame);
 
 		if (block == NULL) {
 			return NULL;
 		}
 
-		frame = PSCA_BLOCK_START(block);
-
 		frame->next = (uint8_t *)((uintptr_t)frame + PSCA_FRAME_OVERHEAD);
 		frame->free = block->size - PSCA_FRAME_OVERHEAD;
 		frame->blocks = block;
 	} else {
+		/* there was enough room in the previous frame's block, so create
+		 * the frame there. */
 		frame = (psca_frame_t *)prev->next;
 
 		frame->next = prev->next + PSCA_FRAME_OVERHEAD;
@@ -196,13 +136,15 @@ psca_frame_add(void *pool,
 	return frame;
 }
 
+/* remove a frame from a pool */
 static inline psca_frame_t *
-psca_frame_remove(void *pool,
-                  psca_frame_t *frame)
+psca_frame_remove(psca_pool_t  *pool,  /* in: pool to remove a frame from */
+                  psca_frame_t *frame) /* in: frame to remove */
 {
 	psca_frame_t *prev = frame->prev;
 	psca_block_t *block = frame->blocks;
 
+	/* destroy all the blocks the frame owns */
 	while (block) {
 		block = psca_block_remove(pool, block);
 	}
@@ -210,10 +152,12 @@ psca_frame_remove(void *pool,
 	return prev;
 }
 
+#define PSCA_POOL_P(_p) ((struct psca_pool *)(_p))
+
 const void *
-psca_frame_push(const void *_pool)
+psca_frame_push(const void *p)
 {
-	struct psca_pool *pool = PSCA_POOL_P(_pool);
+	struct psca_pool *pool = PSCA_POOL_P(p);
 
 	pool->frames = psca_frame_add(pool, pool->frames);
 
@@ -221,9 +165,9 @@ psca_frame_push(const void *_pool)
 }
 
 const void *
-psca_frame_pop(const void *_pool)
+psca_frame_pop(const void *p)
 {
-	struct psca_pool *pool = PSCA_POOL_P(_pool);
+	struct psca_pool *pool = PSCA_POOL_P(p);
 
 	psca_frame_t *frame = pool->frames;
 
@@ -233,9 +177,10 @@ psca_frame_pop(const void *_pool)
 }
 
 void *
-psca_malloc(const void *_pool, size_t size)
+psca_malloc(const void *p,
+            size_t      size)
 {
-	struct psca_pool *pool = PSCA_POOL_P(_pool);
+	struct psca_pool *pool = PSCA_POOL_P(p);
 	void *ptr;
 
 	psca_frame_t *frame = pool->frames;
@@ -244,20 +189,20 @@ psca_malloc(const void *_pool, size_t size)
 		size_t alloc_size = size;
 		psca_block_t *blocks_head;
 
-		if (alloc_size < PSCA_DEFAULT_BLOCK_SIZE) {
-			alloc_size = PSCA_DEFAULT_BLOCK_SIZE;
+		if (alloc_size < pool->default_block_size) {
+			alloc_size = pool->default_block_size;
 		} else {
-			alloc_size *= PSCA_BIG_ALLOC_MULTIPLIER;
+			alloc_size *= pool->alloc_multiplier;
 		}
 
-		blocks_head = psca_block_add(pool, frame->blocks, alloc_size);
+		blocks_head = psca_block_add(pool, frame->blocks, alloc_size,
+		    (void **)&frame->next);
 
 		if (blocks_head == NULL) {
 			return NULL;
 		}
 
 		frame->blocks = blocks_head;
-		frame->next = PSCA_BLOCK_START(blocks_head);
 		frame->free = blocks_head->size;
 	}
 
@@ -267,5 +212,33 @@ psca_malloc(const void *_pool, size_t size)
 	frame->free -= size;
 
 	return ptr;
+}
+
+void *
+psca_alloc_malloc(void   *pool,
+                  size_t *size,
+                  size_t *offset)
+{
+	size_t sz = *size;
+	size_t of = *offset;
+
+	psca_block_t *block = malloc(sz);
+
+	if (block == NULL) {
+		return NULL;
+	}
+
+	*size = sz;
+	*offset = of;
+
+	return block;
+}
+
+void
+psca_free_malloc(void   *pool,
+                 void   *block,
+                 size_t  offset)
+{
+	free((void *)block);
 }
 

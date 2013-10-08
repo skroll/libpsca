@@ -34,9 +34,36 @@ extern "C" {
 #define PSCA_VERSION_MINOR 0
 #define PSCA_VERSION_PATCH 1
 
+typedef void * (* psca_alloc_func_t)(void *pool, size_t *size, size_t *offset);
+typedef void (* psca_free_func_t)(void *pool, void *block, size_t offset);
+
+/**
+ * @brief Allocation pool and configuration.
+ */
 struct psca_pool {
 	struct psca_frame *frames;
+
+	/** Function to use to allocate memory. */
+	psca_alloc_func_t  alloc_func;
+
+	/** Function to use to free memory. */
+	psca_free_func_t   free_func;
+
+	/** Default block size for allocations. */
+	size_t             default_block_size;
+
+	/** Allocation multiplier. */
+	size_t             alloc_multiplier;
 };
+
+#define PSCA_POOL_DEFAULT_INIT \
+	{                          \
+		NULL,                  \
+		psca_alloc_malloc,     \
+		psca_free_malloc,      \
+		(64 * 1024),           \
+		2,                     \
+	}
 
 /**
  * @brief Push a new frame onto the pool allocation stack.
@@ -52,6 +79,24 @@ const void *psca_frame_pop(const void *pool);
  * @brief Allocate memory from the pool allocation stack.
  */
 void *psca_malloc(const void *pool, size_t size);
+
+/**
+ * @defgroup psca_alloc psca allocation implementations
+ *
+ * @{
+ */
+
+/**
+ * @brief Default malloc implementation of allocator.
+ */
+void * psca_alloc_malloc(void *pool, size_t *size, size_t *offset);
+
+/**
+ * @brief Default malloc implementation of free.
+ */
+void psca_free_malloc(void *pool, void *block, size_t offset);
+
+/** @} **********************************************************************/
 
 /** @} **********************************************************************/
 
