@@ -34,51 +34,102 @@ extern "C" {
 #define PSCA_VERSION_MINOR 0
 #define PSCA_VERSION_PATCH 1
 
-typedef void * (* psca_alloc_func_t)(void *pool, size_t *size, size_t *offset);
-typedef void (* psca_free_func_t)(void *pool, void *block, size_t offset);
+int psca_version_major(void);
+int psca_version_minor(void);
+int psca_version_patch(void);
 
 /**
- * @brief Allocation pool and configuration.
+ * @brief Memory allocation function pointer.
+ *
+ * @param[in,out]  size
+ * @param[in,out]  offset
+ * @param[in]      context
  */
-struct psca_pool {
-	struct psca_frame *frames;
+typedef void * (* psca_alloc_func_t)(size_t *size, size_t *offset, void *context);
 
-	/** Function to use to allocate memory. */
-	psca_alloc_func_t  alloc_func;
+/**
+ * @brief Memory deallocation function pointer.
+ *
+ * @param[in]  block
+ * @param[in]  offset
+ * @param[in]  context
+ */
+typedef void (* psca_free_func_t)(void *block, size_t offset, void *context);
 
-	/** Function to use to free memory. */
-	psca_free_func_t   free_func;
+/**
+ * @brief Handle for a psca pool.
+ */
+typedef const void * psca_t;
 
-	/** Default block size for allocations. */
-	size_t             default_block_size;
+/**
+ * @brief Initialize a new pool.
+ *
+ * @return              New pool or NULL on error.
+ */
+psca_t psca_new(void);
 
-	/** Allocation multiplier. */
-	size_t             alloc_multiplier;
-};
+/**
+ * @brief Destroy a pool.
+ *
+ * @param[in]  pool     The pool to be destroyed.
+ *
+ * @return              Returns 0 on success and -1 on error. A possible
+ *                      failure condition is if the pool still had frames
+ *                      on the stack when it was being destroyed.
+ */
+int psca_destroy(psca_t pool);
 
-#define PSCA_POOL_DEFAULT_INIT \
-	{                          \
-		NULL,                  \
-		psca_alloc_malloc,     \
-		psca_free_malloc,      \
-		(64 * 1024),           \
-		2,                     \
-	}
+/**
+ * @brief Set allocation/deallocation functions for a pool.
+ *
+ * @param[in]  pool
+ * @param[in]  alloc_func
+ * @param[in]  free_func
+ * @param[in]  context
+ */
+void psca_set_funcs(psca_t pool, psca_alloc_func_t alloc_func, psca_free_func_t free_func, void *context);
+
+/**
+ * @brief Set block size for a pool.
+ *
+ * @param[in]  pool
+ * @param[in]  value
+ */
+void psca_set_block_size(psca_t pool, size_t value);
+
+/**
+ * @brief Set the growth multiplier for a pool.
+ *
+ * @param[in]  pool
+ * @param[in]  value
+ */
+void psca_set_growth_multiplier(psca_t pool, int value);
 
 /**
  * @brief Push a new frame onto the pool allocation stack.
+ *
+ * @param[in]  pool
+ *
+ * @return              Pointer to newly pushed frame.
  */
-const void *psca_frame_push(const void *pool);
+const void *psca_push(psca_t pool);
 
 /**
  * @brief Pop a frame from the pool allocation stack.
+ *
+ * @return              Pointer to popped frame.
  */
-const void *psca_frame_pop(const void *pool);
+const void *psca_pop(psca_t pool);
 
 /**
  * @brief Allocate memory from the pool allocation stack.
+ *
+ * @param[in]  pool
+ * @param[in]  size
+ *
+ * @return              Allocated memory, NULL on error.
  */
-void *psca_malloc(const void *pool, size_t size);
+void *psca_malloc(psca_t pool, size_t size);
 
 /**
  * @defgroup psca_alloc psca allocation implementations
@@ -89,12 +140,12 @@ void *psca_malloc(const void *pool, size_t size);
 /**
  * @brief Default malloc implementation of allocator.
  */
-void * psca_alloc_malloc(void *pool, size_t *size, size_t *offset);
+void *psca_alloc_malloc(size_t *size, size_t *offset, void *context);
 
 /**
  * @brief Default malloc implementation of free.
  */
-void psca_free_malloc(void *pool, void *block, size_t offset);
+void psca_free_malloc(void *block, size_t offset, void *context);
 
 /** @} **********************************************************************/
 

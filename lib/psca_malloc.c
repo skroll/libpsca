@@ -22,9 +22,9 @@
 #include "psca.h"
 
 void *
-psca_alloc_malloc(void   *pool,
-                  size_t *size,
-                  size_t *offset)
+psca_alloc_malloc(size_t *size,
+                  size_t *offset,
+                  void   *context)
 {
 	size_t sz = *size;
 	size_t of = *offset;
@@ -42,9 +42,9 @@ psca_alloc_malloc(void   *pool,
 }
 
 void
-psca_free_malloc(void   *pool,
-                 void   *block,
-                 size_t  offset)
+psca_free_malloc(void   *block,
+                 size_t  offset,
+                 void   *context)
 {
 	free((void *)block);
 }

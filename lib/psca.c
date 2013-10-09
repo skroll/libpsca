@@ -19,8 +19,12 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "psca.h"
+
+#define PSCA_POOL_DEFAULT_BLOCK_SIZE (64 * 1024)
+#define PSCA_POOL_DEFAULT_MULTIPLIER (2)
 
 /*
  * A block in the system is an allocated chunk of memory. It can be used
@@ -59,6 +63,24 @@ struct psca_frame {
 
 typedef struct psca_frame psca_frame_t;
 
+struct psca_pool {
+	struct psca_frame *frames;
+
+	/** Function to use to allocate memory. */
+	psca_alloc_func_t  alloc_func;
+
+	/** Function to use to free memory. */
+	psca_free_func_t   free_func;
+
+	/** Block size for allocations. */
+	size_t             block_size;
+
+	/** Allocation growth multiplier. */
+	int                growth_multiplier;
+
+	void              *context;
+};
+
 typedef struct psca_pool psca_pool_t;
 
 /* adds a block to a chain */
@@ -72,7 +94,7 @@ psca_block_add(psca_pool_t   *pool, /* in: the pool that owns the block */
 	size_t offset = sizeof(psca_block_t);
 	size += sizeof(psca_block_t);
 
-	psca_block_t *block = pool->alloc_func(pool, &size, &offset);
+	psca_block_t *block = pool->alloc_func(&size, &offset, pool->context);
 
 	if (block == NULL) {
 		return NULL;
@@ -87,11 +109,11 @@ psca_block_add(psca_pool_t   *pool, /* in: the pool that owns the block */
 	return block;
 }
 
-#define PSCA_POOL_P(_p) ((struct psca_pool *)(_p))
+#define PSCA_POOL_P(_p) ((psca_pool_t *)(_p))
 #define PSCA_FRAME_OVERHEAD (sizeof(psca_frame_t))
 
 const void *
-psca_frame_push(const void *p)
+psca_push(psca_t p)
 {
 	struct psca_pool *pool = PSCA_POOL_P(p);
 	psca_frame_t *prev = pool->frames;
@@ -102,7 +124,7 @@ psca_frame_push(const void *p)
 		/* either this is the first frame in the pool, or there is not enough
 		 * room in the previous frame to store the new frame */
 		psca_block_t *block = psca_block_add(pool, NULL,
-		    pool->default_block_size, (void **)&frame);
+		    pool->block_size, (void **)&frame);
 
 		if (block == NULL) {
 			return NULL;
@@ -128,7 +150,7 @@ psca_frame_push(const void *p)
 }
 
 const void *
-psca_frame_pop(const void *p)
+psca_pop(psca_t p)
 {
 	struct psca_pool *pool = PSCA_POOL_P(p);
 	psca_frame_t *frame = pool->frames;
@@ -142,7 +164,7 @@ psca_frame_pop(const void *p)
 	while (block) {
 		psca_block_t *prev = block->prev;
 
-		pool->free_func(pool, block, sizeof(psca_block_t));
+		pool->free_func(block, sizeof(psca_block_t), pool->context);
 
 		block = prev;
 	}
@@ -163,10 +185,10 @@ psca_malloc(const void *p,
 		size_t alloc_size = size;
 		psca_block_t *blocks_head;
 
-		if (alloc_size < pool->default_block_size) {
-			alloc_size = pool->default_block_size;
+		if (alloc_size < pool->block_size) {
+			alloc_size = pool->block_size;
 		} else {
-			alloc_size *= pool->alloc_multiplier;
+			alloc_size *= pool->growth_multiplier;
 		}
 
 		blocks_head = psca_block_add(pool, frame->blocks, alloc_size,
@@ -186,5 +208,76 @@ psca_malloc(const void *p,
 	frame->free -= size;
 
 	return ptr;
+}
+
+psca_t
+psca_new(void)
+{
+	psca_pool_t *pool = malloc(sizeof(psca_pool_t));
+	memset(pool, 0, sizeof(psca_pool_t));
+
+	pool->alloc_func = psca_alloc_malloc;
+	pool->free_func = psca_free_malloc;
+	pool->block_size = PSCA_POOL_DEFAULT_BLOCK_SIZE;
+	pool->growth_multiplier = PSCA_POOL_DEFAULT_MULTIPLIER;
+
+	return pool;
+}
+
+int
+psca_destroy(psca_t p)
+{
+	free((void *)p);
+
+	return 0;
+}
+
+void
+psca_set_funcs(psca_t             p,
+               psca_alloc_func_t  alloc_func,
+               psca_free_func_t   free_func,
+               void              *context)
+{
+	psca_pool_t *pool = PSCA_POOL_P(p);
+
+	pool->alloc_func = alloc_func;
+	pool->free_func = free_func;
+	pool->context = context;
+}
+
+void
+psca_set_block_size(psca_t p,
+                    size_t value)
+{
+	psca_pool_t *pool = PSCA_POOL_P(p);
+
+	pool->block_size = value;
+}
+
+void
+psca_set_growth_multiplier(psca_t p,
+                           int    value)
+{
+	psca_pool_t *pool = PSCA_POOL_P(p);
+
+	pool->growth_multiplier = value;
+}
+
+int
+psca_version_major(void)
+{
+	return PSCA_VERSION_MAJOR;
+}
+
+int
+psca_version_minor(void)
+{
+	return PSCA_VERSION_MINOR;
+}
+
+int
+psca_version_patch(void)
+{
+	return PSCA_VERSION_PATCH;
 }
 
