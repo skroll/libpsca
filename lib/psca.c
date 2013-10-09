@@ -173,8 +173,8 @@ psca_pop(psca_t p)
 }
 
 void *
-psca_malloc(const void *p,
-            size_t      size)
+psca_malloc(psca_t  p,
+            size_t  size)
 {
 	struct psca_pool *pool = PSCA_POOL_P(p);
 	void *ptr;
