@@ -23,8 +23,8 @@
 
 #include "psca.h"
 
-#define PSCA_POOL_DEFAULT_BLOCK_SIZE (64 * 1024)
-#define PSCA_POOL_DEFAULT_FACTOR     (2)
+#define PSCA_POOL_DEFAULT_BLOCK_SIZE    (64 * 1024)
+#define PSCA_POOL_DEFAULT_GROWTH_FACTOR (2)
 
 /*
  * A block in the system is an allocated chunk of memory. It can be used
@@ -214,7 +214,7 @@ psca_new(void)
 	pool->alloc_func = psca_alloc_malloc;
 	pool->free_func = psca_free_malloc;
 	pool->block_size = PSCA_POOL_DEFAULT_BLOCK_SIZE;
-	pool->growth_factor = PSCA_POOL_DEFAULT_FACTOR;
+	pool->growth_factor = PSCA_POOL_DEFAULT_GROWTH_FACTOR;
 
 	return pool;
 }
