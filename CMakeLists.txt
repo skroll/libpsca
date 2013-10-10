@@ -8,6 +8,6 @@ set (PSCA_VERSION_MINOR 0)
 set (PSCA_VERSION_PATCH 1)
 set (PSCA_VERSION_STRING "${PSCA_VERSION_MAJOR}.${PSCA_VERSION_MINOR}.${PSCA_VERSION_PATCH}")
 
-add_subdirectory(lib)
-add_subdirectory(examples)
+add_subdirectory (lib)
+add_subdirectory (examples)
 
