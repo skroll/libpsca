@@ -87,10 +87,11 @@ psca_block_add(psca_pool_t   *pool, /* in: the pool that owns the block */
                void         **data) /* out: pointer after the block header */
 {
 	/* pad the offset + size with size of the block */
+	psca_block_t *block;
 	size_t offset = sizeof(psca_block_t);
 	size += sizeof(psca_block_t);
 
-	psca_block_t *block = pool->alloc_func(&size, &offset, pool->context);
+	block = pool->alloc_func(&size, &offset, pool->context);
 
 	if (block == NULL) {
 		return NULL;
@@ -111,7 +112,7 @@ psca_block_add(psca_pool_t   *pool, /* in: the pool that owns the block */
 const void *
 psca_push(psca_t p)
 {
-	struct psca_pool *pool = PSCA_POOL_P(p);
+	psca_pool_t *pool = PSCA_POOL_P(p);
 	psca_frame_t *prev = pool->frames;
 	psca_frame_t *frame;
 
@@ -139,7 +140,7 @@ psca_push(psca_t p)
 	}
 
 	frame->prev = prev;
-	pool->frames = frame;	
+	pool->frames = frame;
 
 	return (void *)frame;
 }
@@ -147,7 +148,7 @@ psca_push(psca_t p)
 const void *
 psca_pop(psca_t p)
 {
-	struct psca_pool *pool = PSCA_POOL_P(p);
+	psca_pool_t *pool = PSCA_POOL_P(p);
 	psca_frame_t *frame = pool->frames;
 	psca_block_t *block;
 
@@ -171,7 +172,7 @@ void *
 psca_malloc(psca_t  p,
             size_t  size)
 {
-	struct psca_pool *pool = PSCA_POOL_P(p);
+	psca_pool_t *pool = PSCA_POOL_P(p);
 	void *ptr;
 
 	psca_frame_t *frame = pool->frames;

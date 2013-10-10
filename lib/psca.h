@@ -124,8 +124,8 @@ const void *psca_pop(psca_t pool);
 /**
  * @brief Allocate memory from the pool allocation stack.
  *
- * @param[in]  pool
- * @param[in]  size
+ * @param[in]  pool     The pool to allocate from.
+ * @param[in]  size     Number of bytes to allocate.
  *
  * @return              Allocated memory, NULL on error.
  */
