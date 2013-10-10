@@ -119,7 +119,6 @@ psca_push(psca_t p)
 	psca_frame_t *prev = pool->frames;
 	psca_frame_t *frame;
 
-	// =================
 	if ((prev == NULL) || (prev->free < PSCA_FRAME_OVERHEAD)) {
 		/* either this is the first frame in the pool, or there is not enough
 		 * room in the previous frame to store the new frame */
