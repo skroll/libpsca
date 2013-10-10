@@ -98,12 +98,12 @@ void psca_set_funcs(psca_t pool, psca_alloc_func_t alloc_func, psca_free_func_t 
 void psca_set_block_size(psca_t pool, size_t value);
 
 /**
- * @brief Set the growth multiplier for a pool.
+ * @brief Set the growth factor for a pool.
  *
  * @param[in]  pool
  * @param[in]  value
  */
-void psca_set_growth_multiplier(psca_t pool, int value);
+void psca_set_growth_factor(psca_t pool, int value);
 
 /**
  * @brief Push a new frame onto the pool allocation stack.

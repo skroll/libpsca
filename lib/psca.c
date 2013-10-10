@@ -24,7 +24,7 @@
 #include "psca.h"
 
 #define PSCA_POOL_DEFAULT_BLOCK_SIZE (64 * 1024)
-#define PSCA_POOL_DEFAULT_MULTIPLIER (2)
+#define PSCA_POOL_DEFAULT_FACTOR     (2)
 
 /*
  * A block in the system is an allocated chunk of memory. It can be used
@@ -63,21 +63,17 @@ struct psca_frame {
 
 typedef struct psca_frame psca_frame_t;
 
+/*
+ * A pool is nothing more than a stack of frames (implemented as a linked
+ * list) that stores some information about how memory should be allocated.
+ * It is exposed to the user as an opaque pointer.
+ */
 struct psca_pool {
 	struct psca_frame *frames;
-
-	/** Function to use to allocate memory. */
 	psca_alloc_func_t  alloc_func;
-
-	/** Function to use to free memory. */
 	psca_free_func_t   free_func;
-
-	/** Block size for allocations. */
 	size_t             block_size;
-
-	/** Allocation growth multiplier. */
-	int                growth_multiplier;
-
+	int                growth_factor;
 	void              *context;
 };
 
@@ -187,7 +183,7 @@ psca_malloc(psca_t  p,
 		if (alloc_size < pool->block_size) {
 			alloc_size = pool->block_size;
 		} else {
-			alloc_size *= pool->growth_multiplier;
+			alloc_size *= pool->growth_factor;
 		}
 
 		blocks_head = psca_block_add(pool, frame->blocks, alloc_size,
@@ -218,7 +214,7 @@ psca_new(void)
 	pool->alloc_func = psca_alloc_malloc;
 	pool->free_func = psca_free_malloc;
 	pool->block_size = PSCA_POOL_DEFAULT_BLOCK_SIZE;
-	pool->growth_multiplier = PSCA_POOL_DEFAULT_MULTIPLIER;
+	pool->growth_factor = PSCA_POOL_DEFAULT_FACTOR;
 
 	return pool;
 }
@@ -254,12 +250,12 @@ psca_set_block_size(psca_t p,
 }
 
 void
-psca_set_growth_multiplier(psca_t p,
-                           int    value)
+psca_set_growth_factor(psca_t p,
+                       int    value)
 {
 	psca_pool_t *pool = PSCA_POOL_P(p);
 
-	pool->growth_multiplier = value;
+	pool->growth_factor = value;
 }
 
 int
