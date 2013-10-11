@@ -24,12 +24,6 @@
 extern "C" {
 #endif /* __cplusplus */
 
-/**
- * @defgroup psca The psca API
- *
- * @{
- */
-
 #define PSCA_VERSION_MAJOR 0
 #define PSCA_VERSION_MINOR 0
 #define PSCA_VERSION_PATCH 1
@@ -135,8 +129,6 @@ const void *psca_pop(psca_t pool);
  * @return              Allocated memory, NULL on error.
  */
 void *psca_malloc(psca_t pool, size_t size);
-
-/** @} **********************************************************************/
 
 #ifdef __cplusplus
 } /* end of extern "C" */
