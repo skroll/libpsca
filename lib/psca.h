@@ -87,7 +87,8 @@ int psca_destroy(psca_t pool);
  * @param[in]  free_func
  * @param[in]  context
  */
-void psca_set_funcs(psca_t pool, psca_alloc_func_t alloc_func, psca_free_func_t free_func, void *context);
+void psca_set_funcs(psca_t pool, psca_alloc_func_t alloc_func,
+                    psca_free_func_t free_func, void *context);
 
 /**
  * @brief Set block size for a pool.
@@ -130,24 +131,6 @@ const void *psca_pop(psca_t pool);
  * @return              Allocated memory, NULL on error.
  */
 void *psca_malloc(psca_t pool, size_t size);
-
-/**
- * @defgroup psca_alloc psca allocation implementations
- *
- * @{
- */
-
-/**
- * @brief Default malloc implementation of allocator.
- */
-void *psca_alloc_malloc(size_t *size, size_t *offset, void *context);
-
-/**
- * @brief Default malloc implementation of free.
- */
-void psca_free_malloc(void *block, size_t offset, void *context);
-
-/** @} **********************************************************************/
 
 /** @} **********************************************************************/
 

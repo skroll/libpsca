@@ -206,6 +206,34 @@ psca_malloc(psca_t  p,
 	return ptr;
 }
 
+static void *
+psca_alloc_malloc(size_t *size,
+                  size_t *offset,
+                  void   *context)
+{
+	size_t sz = *size;
+	size_t of = *offset;
+
+	void *block = malloc(sz);
+
+	if (block == NULL) {
+		return NULL;
+	}
+
+	*size = sz;
+	*offset = of;
+
+	return block;
+}
+
+static void
+psca_free_malloc(void   *block,
+                 size_t  offset,
+                 void   *context)
+{
+	free((void *)block);
+}
+
 psca_t
 psca_new(void)
 {
