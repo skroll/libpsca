@@ -82,10 +82,14 @@ int psca_destroy(psca_t pool);
 /**
  * @brief Set allocation/deallocation functions for a pool.
  *
- * @param[in]  pool
- * @param[in]  alloc_func
- * @param[in]  free_func
- * @param[in]  context
+ * @param[in]  pool       The pool to set the functions for.
+ * @param[in]  alloc_func The allocation function to use.
+ * @param[in]  free_func  The deallocation function to use.
+ * @param[in]  context    User data supplied in callback.
+ *
+ * @warning               Do not change allocation functions if anything
+ *                        has been allocated from the pool, it will result
+ *                        in undefined (and probably unstable) behavior.
  */
 void psca_set_funcs(psca_t pool, psca_alloc_func_t alloc_func,
                     psca_free_func_t free_func, void *context);
