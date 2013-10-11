@@ -206,10 +206,11 @@ psca_malloc(psca_t  p,
 	return ptr;
 }
 
+/* default implementation of memory allocation */
 static void *
-psca_alloc_malloc(size_t *size,
-                  size_t *offset,
-                  void   *context)
+psca_default_alloc(size_t *size,
+                   size_t *offset,
+                   void   *context)
 {
 	size_t sz = *size;
 	size_t of = *offset;
@@ -226,10 +227,11 @@ psca_alloc_malloc(size_t *size,
 	return block;
 }
 
+/* default implementation of memory deallocation */
 static void
-psca_free_malloc(void   *block,
-                 size_t  offset,
-                 void   *context)
+psca_default_free(void   *block,
+                  size_t  offset,
+                  void   *context)
 {
 	free((void *)block);
 }
@@ -240,8 +242,8 @@ psca_new(void)
 	psca_pool_t *pool = malloc(sizeof(psca_pool_t));
 	memset(pool, 0, sizeof(psca_pool_t));
 
-	pool->alloc_func = psca_alloc_malloc;
-	pool->free_func = psca_free_malloc;
+	pool->alloc_func = psca_default_alloc;
+	pool->free_func = psca_default_free;
 	pool->block_size = PSCA_POOL_DEFAULT_BLOCK_SIZE;
 	pool->growth_factor = PSCA_POOL_DEFAULT_GROWTH_FACTOR;
 
