@@ -83,29 +83,25 @@ typedef struct psca_pool psca_pool_t;
 static inline psca_block_t *
 psca_block_add(psca_pool_t   *pool, /* in: the pool that owns the block */
                psca_block_t  *prev, /* in: previous block in the frame */
-               size_t         size, /* in: the requested size */
-               void         **data) /* out: pointer after the block header */
+               size_t         size)
 {
-	/* pad the offset + size with size of the block */
 	psca_block_t *block;
-	size_t offset = sizeof(psca_block_t);
 	size += sizeof(psca_block_t);
 
-	block = pool->alloc_func(&size, &offset, pool->context);
+	block = pool->alloc_func(&size, pool->context);
 
 	if (block == NULL) {
 		return NULL;
 	}
 
 	/* we requested more than is actually usable by the user */
-	block->size = size - offset;
+	block->size = size - sizeof(psca_block_t);
 	block->prev = prev;
-
-	*data = (void *)((uintptr_t)block + offset);
 
 	return block;
 }
 
+#define PSCA_BLOCK_START(_p) (void *)((uintptr_t)(_p) + sizeof(psca_block_t))
 #define PSCA_POOL_P(_p) ((psca_pool_t *)(_p))
 #define PSCA_FRAME_OVERHEAD (sizeof(psca_frame_t))
 
@@ -119,13 +115,13 @@ psca_push(psca_t p)
 	if ((prev == NULL) || (prev->free < PSCA_FRAME_OVERHEAD)) {
 		/* either this is the first frame in the pool, or there is not enough
 		 * room in the previous frame to store the new frame */
-		psca_block_t *block = psca_block_add(pool, NULL,
-		    pool->block_size, (void **)&frame);
+		psca_block_t *block = psca_block_add(pool, NULL, pool->block_size);
 
 		if (block == NULL) {
 			return NULL;
 		}
 
+		frame = PSCA_BLOCK_START(block);
 		frame->next = (uint8_t *)((uintptr_t)frame + PSCA_FRAME_OVERHEAD);
 		frame->free = block->size - PSCA_FRAME_OVERHEAD;
 		frame->blocks = block;
@@ -160,7 +156,7 @@ psca_pop(psca_t p)
 	while (block) {
 		psca_block_t *prev = block->prev;
 
-		pool->free_func(block, sizeof(psca_block_t), pool->context);
+		pool->free_func(block, pool->context);
 
 		block = prev;
 	}
@@ -187,13 +183,13 @@ psca_malloc(psca_t  p,
 			alloc_size *= pool->growth_factor;
 		}
 
-		blocks_head = psca_block_add(pool, frame->blocks, alloc_size,
-		    (void **)&frame->next);
+		blocks_head = psca_block_add(pool, frame->blocks, alloc_size);
 
 		if (blocks_head == NULL) {
 			return NULL;
 		}
 
+		frame->next = PSCA_BLOCK_START(blocks_head);
 		frame->blocks = blocks_head;
 		frame->free = blocks_head->size;
 	}
@@ -209,11 +205,9 @@ psca_malloc(psca_t  p,
 /* default implementation of memory allocation */
 static void *
 psca_default_alloc(size_t *size,
-                   size_t *offset,
                    void   *context)
 {
 	size_t sz = *size;
-	size_t of = *offset;
 
 	void *block = malloc(sz);
 
@@ -222,7 +216,6 @@ psca_default_alloc(size_t *size,
 	}
 
 	*size = sz;
-	*offset = of;
 
 	return block;
 }
@@ -230,7 +223,6 @@ psca_default_alloc(size_t *size,
 /* default implementation of memory deallocation */
 static void
 psca_default_free(void   *block,
-                  size_t  offset,
                   void   *context)
 {
 	free((void *)block);

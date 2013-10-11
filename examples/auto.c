@@ -34,7 +34,7 @@ typedef struct {
 } t_pool_t;
 
 static void *
-t_alloc(size_t *s, size_t *offset, void *context)
+t_alloc(size_t *s, void *context)
 {
 	size_t size = *s;
 	size_t pagelessone = getpagesize() - 1;
@@ -51,7 +51,7 @@ t_alloc(size_t *s, size_t *offset, void *context)
 }
 
 static void
-t_free(void *block, size_t offset, void *context)
+t_free(void *block, void *context)
 {
 	t_pool_t *pool = (t_pool_t *)context;
 

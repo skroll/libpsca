@@ -45,7 +45,7 @@ int psca_version_patch(void);
  * @param[in,out]  offset
  * @param[in]      context
  */
-typedef void * (* psca_alloc_func_t)(size_t *size, size_t *offset, void *context);
+typedef void * (* psca_alloc_func_t)(size_t *size, void *context);
 
 /**
  * @brief Memory deallocation function pointer.
@@ -54,7 +54,7 @@ typedef void * (* psca_alloc_func_t)(size_t *size, size_t *offset, void *context
  * @param[in]  offset
  * @param[in]  context
  */
-typedef void (* psca_free_func_t)(void *block, size_t offset, void *context);
+typedef void (* psca_free_func_t)(void *block, void *context);
 
 /**
  * @brief Handle for a psca pool.
