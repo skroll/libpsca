@@ -20,6 +20,8 @@
 #ifndef _PSCA_H_
 #define _PSCA_H_
 
+#include <psca/version.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -29,10 +31,6 @@ extern "C" {
  *
  * @{
  */
-
-#define PSCA_VERSION_MAJOR 0
-#define PSCA_VERSION_MINOR 0
-#define PSCA_VERSION_PATCH 1
 
 int psca_version_major(void);
 int psca_version_minor(void);
