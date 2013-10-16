@@ -1,0 +1,5 @@
+/**
+ * @mainpage
+ *
+ * libpsca is a pool allocator that allocates in a stack-like manner.
+ */
